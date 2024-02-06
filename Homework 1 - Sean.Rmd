@@ -1,0 +1,247 @@
+---
+title: "Homework 1 - Sean"
+output: html_document
+date: "2024-02-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(igraph)
+library(RColorBrewer)
+library(tidyverse)
+library(fromjson)
+```
+
+
+```{r}
+df302 <- read.csv("amazon0302.txt.gz", header=TRUE, skip=3, sep="\t")
+colnames(df302)[c(1,2)] <- c("a","b")
+head(df302)
+
+df312 <- read.csv("amazon0312.txt.gz", header=TRUE, skip=3, sep="\t")
+colnames(df312)[c(1,2)] <- c("a","b")
+head(df312)
+
+df505 <- read.csv("amazon0505.txt.gz", header=TRUE, skip=3, sep="\t")
+colnames(df505)[c(1,2)] <- c("a","b")
+head(df505)
+
+df601 <- read.csv("amazon0601.txt.gz", header=TRUE, skip=3, sep="\t")
+colnames(df601)[c(1,2)] <- c("a","b")
+head(df601)
+
+```
+
+Must figure out how to clean up the data 
+Im pretty sure that the data is in JSON format. IDK HOW TO READ IT THOUGH
+
+```{r}
+temp_df <- read.csv("amazon-meta.txt.gz", header=F, skip = 2)
+print(temp_df)
+
+
+
+```
+
+
+
+
+Finding the degree 
+```{r}
+G = graph_from_data_frame(df312, directed = T)
+set.seed(45)
+comp = components(G)
+in.max.comp = (comp$membership == 1)
+sg = induced_subgraph(G, in.max.comp)
+
+
+temp <- degree(sg)
+temp_df <- data.frame(temp)
+temp_df <- cbind(item_no = 0:(length(temp)-1), temp_df)
+colnames(temp_df)[2] <- "degree"
+
+
+temp_df <- temp_df[temp_df$degree >= 30,]
+temp_df
+
+```
+
+
+Getting degree centrality for each data set 
+```{r}
+get_degree_df <- function(data, pruning_value){
+  set.seed(45)
+  G <- graph_from_data_frame(data, directed = T)
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+
+  temp <- degree(sg)
+  temp_df <- data.frame(temp)
+  temp_df <- cbind(item_no = 0:(length(temp)-1), temp_df)
+  colnames(temp_df)[2] <- "degree"
+
+  temp_df <- temp_df[temp_df$degree >= pruning_value,]
+  temp_df <- temp_df[order(temp_df$degree, decreasing = T),]
+  return(temp_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+data_list <- list(df302, df312, df505, df601)
+prune_list <- list(40,100,100,100)
+
+
+for (i in 1:length(data_list)){
+  print(get_degree_df(data_list[i], prune_list[i]))
+}
+
+
+```
+
+
+
+
+SHRINKING DATA SET BY PRUNING BASED ON THE DEGREE CENTRALITY (ie the number of 
+edges that each vertex has)
+
+```{r}
+#---------------------------------------------------------------------------
+#try to prune the data based on these 
+#so we first get all the values of items that we want to keep 
+
+item_lst_302 <- get_degree_df(df302, 30)[,1]
+pruned_302_df <- filter(df302, a %in% item_lst_302)
+print(pruned_302_df)
+
+item_lst_312 <- get_degree_df(df312, 100)[,1]
+pruned_312_df <- filter(df312, a %in% item_lst_312)
+print(pruned_312_df)
+
+item_lst_505 <- get_degree_df(df505, 100)[,1]
+pruned_505_df <- filter(df505, a %in% item_lst_505)
+print(pruned_505_df)
+
+item_lst_601 <- get_degree_df(df601, 100)[,1]
+pruned_601_df <- filter(df601, a %in% item_lst_601)
+print(pruned_601_df)
+
+```
+
+
+Getting closeness centrality using the above pruned data
+
+```{r}
+get_closenees_centrality <- function(data){
+  set.seed(45)
+  G <- graph_from_data_frame(data, directed = T)
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+  
+  sg_cl <- closeness(sg)
+  print(summary(sg_cl))
+  sg_cl_df <- data.frame(sg_cl)
+  sg_cl_df <- cbind(item_no = 0:(length(sg_cl)-1), sg_cl_df)
+  colnames(sg_cl_df)[2] <- "closeness"
+  sg_cl_df <- sg_cl_df[order(sg_cl_df$closeness, decreasing = T),]
+  
+  return(sg_cl_df) 
+}
+
+
+#---------------------------------------------------------------------------
+
+data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
+
+
+for (i in 1:length(data_list)){
+  print(get_closenees_centrality(data_list[i]))
+}
+
+
+```
+
+Getting between-ness centrality 
+
+```{r}
+get_between_centrality <- function(data){
+  set.seed(45)
+  G <- graph_from_data_frame(data, directed = T)
+
+  bn <- betweenness(G)
+  print(summary(bn))
+  bn_df <- data.frame(bn)
+  bn_df <- cbind(item_no = 0:(length(bn_df)-1), bn_df)
+  colnames(bn_df)[2] <- "between"
+  bn_df <- bn_df[order(bn_df$between, decreasing = T),]
+  
+  return(bn_df) 
+}
+
+
+#---------------------------------------------------------------------------
+
+data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
+
+
+for (i in 1:length(data_list)){
+  print(get_closenees_centrality(data_list[i]))
+}
+
+
+```
+
+Getting page-rank
+
+```{r}
+get_page_rank <- function(data){
+  set.seed(45)
+  G <- graph_from_data_frame(data, directed = T)
+  comp <- components(G)
+  
+  pr <- page.rank(G)$vector
+  print(summary(pr))
+  pr_df <- data.frame(pr)
+  pr_df <- cbind(item_no = 0:(length(pr_df)-1), pr_df)
+  colnames(pr_df)[2] <- "between"
+  pr_df <- pr_df[order(pr_df$between, decreasing = T),]
+  
+  return(pr_df) 
+}
+
+
+#---------------------------------------------------------------------------
+
+data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
+
+
+for (i in 1:length(data_list)){
+  print(get_closenees_centrality(data_list[i]))
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
