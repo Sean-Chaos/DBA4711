@@ -23,6 +23,9 @@ get.colors = function(cols, x) {
 
 Cleaning metadata into a table. DO NOT RUN. Read results from file.
 ```{r}
+meta_data <- readLines("amazon-meta.txt.gz", encoding = 'utf-8')
+meta_data <- meta_data[-1:-3]
+print(meta_data[1:20])
 
 stepi <- 0
 pb <- txtProgressBar(min=0, max=length(meta_data), initial = 0, style = 3)
@@ -148,20 +151,9 @@ colnames(df601)[c(1,2)] <- c("from","to")
 ```
 
 
-Must figure out how to clean up the data 
-Im pretty sure that the data is in JSON format. IDK HOW TO READ IT THOUGH
-```{r}
-meta_data <- readLines("amazon-meta.txt.gz", encoding = 'utf-8')
-meta_data <- meta_data[-1:-3]
-print(meta_data[1:20])
-```
 
 
-
-
-
-
-Already cleaned metadata is expoerted to save time
+Importing the already cleaned data that was previously cleaned above to save time
 ```{r}
 
 meta_data_df <- read.csv("meta_data.csv")
@@ -463,7 +455,21 @@ close(pb)
 
 
 
+### Functions that will be used
 
+```{r}
+
+top100_group <- function(data, top_, value_col){
+  #this function takes in data, top_ and the value column and returns a dataframe containing the 
+  #the top (top_) rows of data in each group for the value_col 
+  out_df <- data %>% group_by(Group) %>%
+    arrange(desc(value_col)) %>% 
+    slice(1:top_)
+  return(out_df)
+}
+
+
+```
 
 
 
@@ -509,6 +515,7 @@ get_degree_df_with_meta_data <- function(data){
 
 
 #---------------------------------------------------------------------------
+#Apply function 
 
 df302_degree_meta <- get_degree_df_with_meta_data(df302)
 print(df302_degree_meta)
@@ -523,12 +530,63 @@ df601_degree_meta <- get_degree_df_with_meta_data(df601)
 print(df601_degree_meta)
 ```
 
+TEST PROBLEM THERE ARE NOT 100 products in each group?!?!?! Ialready never remove any data
+```{r}
+get_degree_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Calculating degree
+  temp <- degree(G)
+  
+  #Converting into dataframe
+  temp_df <- data.frame(temp)
+  
+  #Adding column with the node ID
+  temp_df <- cbind(as.integer(names(temp)), temp_df)
+  
+  #Renaming columns
+  colnames(temp_df)[c(1,2)] <- c("Id","degree")
+  
+  #Reordering based on degree
+  temp_df <- temp_df[order(temp_df$degree, decreasing = T),]
+  
+  #Left join meta data
+  temp_df <- left_join(temp_df, meta_data_df, by= "Id")
+  
+
+  return(temp_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+df302_degree_meta <- get_degree_df_with_meta_data(df302)
+print(df302_degree_meta)
+
+df312_degree_meta <- get_degree_df_with_meta_data(df312)
+print(df312_degree_meta)
+
+df505_degree_meta <- get_degree_df_with_meta_data(df505)
+print(df505_degree_meta)
+
+df601_degree_meta <- get_degree_df_with_meta_data(df601)
+print(df601_degree_meta)
+```
+
+
+
 Group by group and then just head 100 
 ```{r}
-temp_df <- head(temp_df, n = 100)
 
-
-
+top100_group(df302_degree_meta, 5, 'degree')
+top100_group(df312_degree_meta, 5, 'degree')
+top100_group(df505_degree_meta, 5, 'degree')
+top100_group(df601_degree_meta, 5, 'degree')
 
 ```
 
@@ -538,7 +596,7 @@ temp_df <- head(temp_df, n = 100)
 ```{r}
 get_closeness_df_with_meta_data <- function(data){
   #Function that return a dataframe containing node ID with their corresponding
-  #degrees
+  #closeness
   
   #creating igraph object using edge data and meta data
   G <- graph_from_data_frame(data, directed = T)
@@ -546,7 +604,6 @@ get_closeness_df_with_meta_data <- function(data){
   #Reducing to the largest connected componenet of the graph
   comp <- components(G)
   in.max.comp <- (comp$membership == 1)
-  print(in.max.comp)
   sg <- induced_subgraph(G, in.max.comp)
 
   #Calculating closeness
@@ -575,6 +632,7 @@ get_closeness_df_with_meta_data <- function(data){
 
 
 #---------------------------------------------------------------------------
+#Apply function 
 
 df302_close_meta <- get_closeness_df_with_meta_data(pruned_302_df)
 print(df302_close_meta)
@@ -592,10 +650,11 @@ print(df601_close_meta)
 
 Group by group and then just head 100 
 ```{r}
-temp_df <- head(temp_df, n = 100)
 
-
-
+top100_group(df302_close_meta, 5, 'degree')
+top100_group(df312_close_meta, 5, 'degree')
+top100_group(df505_close_meta, 5, 'degree')
+top100_group(df601_close_meta, 5, 'degree')
 
 ```
 
@@ -607,7 +666,7 @@ temp_df <- head(temp_df, n = 100)
 ```{r}
 get_between_df_with_meta_data <- function(data){
   #Function that return a dataframe containing node ID with their corresponding
-  #degrees
+  #betweenness
   
   #creating igraph object using edge data and meta data
   G <- graph_from_data_frame(data, directed = T)
@@ -643,7 +702,7 @@ get_between_df_with_meta_data <- function(data){
 
 
 #---------------------------------------------------------------------------
-
+#Apply function 
 
 df302_bet_meta <- get_between_df_with_meta_data(pruned_302_df)
 print(df302_bet_meta)
@@ -661,10 +720,11 @@ print(df601_bet_meta)
 
 Group by group and then just head 100 
 ```{r}
-temp_df <- head(temp_df, n = 100)
 
-
-
+top100_group(df302_bet_meta, 5, 'degree')
+top100_group(df312_bet_meta, 5, 'degree')
+top100_group(df505_bet_meta, 5, 'degree')
+top100_group(df601_bet_meta, 5, 'degree')
 
 ```
 
@@ -678,7 +738,7 @@ temp_df <- head(temp_df, n = 100)
 ```{r}
 get_page_rank_df_with_meta_data <- function(data){
   #Function that return a dataframe containing node ID with their corresponding
-  #degrees
+  #page-rank
   
   #creating igraph object using edge data and meta data
   G <- graph_from_data_frame(data, directed = T)
@@ -714,6 +774,7 @@ get_page_rank_df_with_meta_data <- function(data){
 
 
 #---------------------------------------------------------------------------
+#Apply function 
 
 df302_page_rank_meta <- get_page_rank_df_with_meta_data(pruned_302_df)
 print(df302_bet_meta)
@@ -731,10 +792,11 @@ print(df601_bet_meta)
 
 Group by group and then just head 100 
 ```{r}
-temp_df <- head(temp_df, n = 100)
 
-
-
+top100_group(df302_page_rank_meta, 5, 'degree')
+top100_group(df312_page_rank_meta, 5, 'degree')
+top100_group(df505_page_rank_meta, 5, 'degree')
+top100_group(df601_page_rank_meta, 5, 'degree')
 
 ```
 
