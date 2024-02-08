@@ -130,6 +130,20 @@ write.csv(meta_data_df,
 ```
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Data import
 ```{r}
 df302 <- read.csv("amazon0302.txt.gz", header=TRUE, skip=3, sep="\t")
@@ -149,8 +163,6 @@ colnames(df601)[c(1,2)] <- c("from","to")
 (df601)
 
 ```
-
-
 
 
 Importing the already cleaned data that was previously cleaned above to save time
@@ -180,9 +192,6 @@ meta_data_df
 
 
 ### Actual work
-
-
-
 
 Finding the degree centrality (to delete)
 ```{r}
@@ -476,6 +485,10 @@ top100_group <- function(data, top_, value_col){
 
 
 
+
+
+
+
 ### DATA WTIH METADATA FOR DEGREE CENTRALITY 
 ```{r}
 get_degree_df_with_meta_data <- function(data){
@@ -592,6 +605,15 @@ top100_group(df601_degree_meta, 5, 'degree')
 
 
 
+
+
+
+
+
+
+
+
+
 ### Getting closeness centrality 
 ```{r}
 get_closeness_df_with_meta_data <- function(data){
@@ -662,6 +684,14 @@ top100_group(df601_close_meta, 5, 'degree')
 
 
 
+
+
+
+
+
+
+
+
 ### Getting betweenness centrality 
 ```{r}
 get_between_df_with_meta_data <- function(data){
@@ -727,6 +757,15 @@ top100_group(df505_bet_meta, 5, 'degree')
 top100_group(df601_bet_meta, 5, 'degree')
 
 ```
+
+
+
+
+
+
+
+
+
 
 
 
