@@ -12,44 +12,187 @@ knitr::opts_chunk$set(echo = TRUE)
 library(igraph)
 library(RColorBrewer)
 library(tidyverse)
-library(fromjson)
+
+
+get.colors = function(cols, x) {
+  ramp = colorRamp(cols)
+  apply(ramp(x/max(x)), 1, function(y) rgb(y[1]/255, y[2]/255, y[3]/255))
+}
+
+```
+
+Cleaning metadata into a table. DO NOT RUN. Read results from file.
+```{r}
+
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(meta_data), initial = 0, style = 3)
+
+
+
+row <- 0 
+meta_data_df <- data.frame(Id=NA, Title=NA,
+                               Categories=NA, Group=NA,
+                               Copurchased= NA, SalesRank=NA) 
+
+
+Id <- ""
+ASIN <- ""
+Title <- ""
+Categories <- ""
+Group <- ""
+Copurchased <- ""
+SalesRank <- 0
+
+
+
+start_time <- Sys.time()
+
+for (i in meta_data){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+
+  i <- trimws(i) 
+
+  if (substr(i, 1 ,3) == "Id:"){
+    Id <- trimws(substring(i ,4 ))
+  }
+  
+  else if (substr(i, 1,5) == "ASIN:"){
+    ASIN <- trimws(substring(i ,6 ))
+  }
+  
+  else if (substr(i, 1,6) == "title:"){
+    Title <- trimws(substring(i ,7 ))
+  }
+  
+  else if (substr(i, 1,6) == "group:"){
+    Group <- trimws(substring(i ,7 ))
+  }
+  
+  else if (substr(i, 1,10) == "salesrank:"){
+    SalesRank <- trimws(substring(i ,11 ))
+  }
+  
+  else if (substr(i, 1,8) == "similar:"){
+    Copurchased <- trimws(substring(i ,9 ))
+  }
+  
+  else if (substr(i, 1,11) == "categories:"){
+    Categories <- trimws(substring(i ,12 ))
+  }
+  
+  else if (i == ""){
+    
+    row <- row + 1
+
+      if (ASIN != ""){
+        try(meta_data_df[row,'Id'] <- Id)
+        try(meta_data_df[row,'Title'] <- Title)
+        try(meta_data_df[row,'Categories'] <- Categories)
+        try(meta_data_df[row,'Group'] <- Group)
+        try(meta_data_df[row,'Copurchased'] <- Copurchased)
+        try(meta_data_df[row,'SalesRank'] <- as.integer(SalesRank))
+      }
+      
+    next
+      
+  Id <- ""
+  ASIN <- ""
+  Title <- ""
+  Categories <- ""
+  Group <- ""
+  Copurchased <- ""
+  SalesRank <- 0
+
+    
+  }
+  
+  
+  
+}
+
+close(pb)
+
+end_time <- Sys.time()
+print(end_time - start_time)
+
+
+print(meta_data_df)
+
+write.csv(meta_data_df, 
+          "C:\\Users\\Sean Law\\Desktop\\DBA4711\\Homework 1\\meta_data.csv",
+          row.names=F)
+
 ```
 
 
+Data import
 ```{r}
 df302 <- read.csv("amazon0302.txt.gz", header=TRUE, skip=3, sep="\t")
-colnames(df302)[c(1,2)] <- c("a","b")
-head(df302)
+colnames(df302)[c(1,2)] <- c("from","to")
+(df302)
 
 df312 <- read.csv("amazon0312.txt.gz", header=TRUE, skip=3, sep="\t")
-colnames(df312)[c(1,2)] <- c("a","b")
-head(df312)
+colnames(df312)[c(1,2)] <- c("from","to")
+(df312)
 
 df505 <- read.csv("amazon0505.txt.gz", header=TRUE, skip=3, sep="\t")
-colnames(df505)[c(1,2)] <- c("a","b")
-head(df505)
+colnames(df505)[c(1,2)] <- c("from","to")
+(df505)
 
 df601 <- read.csv("amazon0601.txt.gz", header=TRUE, skip=3, sep="\t")
-colnames(df601)[c(1,2)] <- c("a","b")
-head(df601)
+colnames(df601)[c(1,2)] <- c("from","to")
+(df601)
 
 ```
+
 
 Must figure out how to clean up the data 
 Im pretty sure that the data is in JSON format. IDK HOW TO READ IT THOUGH
-
 ```{r}
-temp_df <- read.csv("amazon-meta.txt.gz", header=F, skip = 2)
-print(temp_df)
+meta_data <- readLines("amazon-meta.txt.gz", encoding = 'utf-8')
+meta_data <- meta_data[-1:-3]
+print(meta_data[1:20])
+```
 
 
+
+
+
+
+Already cleaned metadata is expoerted to save time
+```{r}
+
+meta_data_df <- read.csv("meta_data.csv")
+meta_data_df
 
 ```
 
 
 
 
-Finding the degree 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Actual work
+
+
+
+
+Finding the degree centrality (to delete)
 ```{r}
 G = graph_from_data_frame(df312, directed = T)
 set.seed(45)
@@ -60,8 +203,8 @@ sg = induced_subgraph(G, in.max.comp)
 
 temp <- degree(sg)
 temp_df <- data.frame(temp)
-temp_df <- cbind(item_no = 0:(length(temp)-1), temp_df)
-colnames(temp_df)[2] <- "degree"
+temp_df <- cbind(as.integer(names(temp)), temp_df)
+colnames(temp_df)[c(1,2)] <- c("Id","degree")
 
 
 temp_df <- temp_df[temp_df$degree >= 30,]
@@ -69,22 +212,36 @@ temp_df
 
 ```
 
+Getting degree centrality for each data set (Correct)
 
-Getting degree centrality for each data set 
+The reason why we are pruning for nodes with such high degree centrality is because it is 
+unlikely that a node with low degree centrality will have high closeness centrality 
 ```{r}
 get_degree_df <- function(data, pruning_value){
-  set.seed(45)
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
   G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
   comp <- components(G)
   in.max.comp <- (comp$membership == 1)
   sg <- induced_subgraph(G, in.max.comp)
 
-
+  #Calculating degree
   temp <- degree(sg)
+  
+  #Converting into dataframe
   temp_df <- data.frame(temp)
-  temp_df <- cbind(item_no = 0:(length(temp)-1), temp_df)
-  colnames(temp_df)[2] <- "degree"
-
+  
+  #Adding column with the node ID
+  temp_df <- cbind(as.integer(names(temp)), temp_df)
+  
+  #Renaming columns
+  colnames(temp_df)[c(1,2)] <- c("Id","degree")
+  
+  #Pruning 
   temp_df <- temp_df[temp_df$degree >= pruning_value,]
   temp_df <- temp_df[order(temp_df$degree, decreasing = T),]
   return(temp_df) 
@@ -95,48 +252,52 @@ get_degree_df <- function(data, pruning_value){
 #---------------------------------------------------------------------------
 
 data_list <- list(df302, df312, df505, df601)
-prune_list <- list(40,100,100,100)
+prune_list <- list(10,30,30,30)
 
+
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(data_list), initial = 0, style = 3)
 
 for (i in 1:length(data_list)){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+  
   print(get_degree_df(data_list[i], prune_list[i]))
 }
 
+close(pb)
 
 ```
 
 
-
-
 SHRINKING DATA SET BY PRUNING BASED ON THE DEGREE CENTRALITY (ie the number of 
 edges that each vertex has)
-
 ```{r}
 #---------------------------------------------------------------------------
 #try to prune the data based on these 
 #so we first get all the values of items that we want to keep 
 
-item_lst_302 <- get_degree_df(df302, 30)[,1]
-pruned_302_df <- filter(df302, a %in% item_lst_302)
+item_lst_302 <- get_degree_df(df302, 20)[,1]
+pruned_302_df <- filter(df302, from %in% item_lst_302)
 print(pruned_302_df)
 
-item_lst_312 <- get_degree_df(df312, 100)[,1]
-pruned_312_df <- filter(df312, a %in% item_lst_312)
+item_lst_312 <- get_degree_df(df312, 50)[,1]
+pruned_312_df <- filter(df312, from %in% item_lst_312)
 print(pruned_312_df)
 
-item_lst_505 <- get_degree_df(df505, 100)[,1]
-pruned_505_df <- filter(df505, a %in% item_lst_505)
+item_lst_505 <- get_degree_df(df505, 50)[,1]
+pruned_505_df <- filter(df505, from %in% item_lst_505)
 print(pruned_505_df)
 
-item_lst_601 <- get_degree_df(df601, 100)[,1]
-pruned_601_df <- filter(df601, a %in% item_lst_601)
+item_lst_601 <- get_degree_df(df601, 50)[,1]
+pruned_601_df <- filter(df601, from  %in% item_lst_601)
 print(pruned_601_df)
 
 ```
 
 
 Getting closeness centrality using the above pruned data
-
 ```{r}
 get_closenees_centrality <- function(data){
   set.seed(45)
@@ -148,8 +309,8 @@ get_closenees_centrality <- function(data){
   sg_cl <- closeness(sg)
   print(summary(sg_cl))
   sg_cl_df <- data.frame(sg_cl)
-  sg_cl_df <- cbind(item_no = 0:(length(sg_cl)-1), sg_cl_df)
-  colnames(sg_cl_df)[2] <- "closeness"
+  sg_cl_df <- cbind(names(sg_cl), sg_cl_df)
+  colnames(sg_cl_df)[c(1,2)] <- c("ID","closeness")
   sg_cl_df <- sg_cl_df[order(sg_cl_df$closeness, decreasing = T),]
   
   return(sg_cl_df) 
@@ -160,16 +321,54 @@ get_closenees_centrality <- function(data){
 
 data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
 
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(data_list), initial = 0, style = 3)
 
 for (i in 1:length(data_list)){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+  
   print(get_closenees_centrality(data_list[i]))
 }
+
+close(pb)
 
 
 ```
 
-Getting between-ness centrality 
 
+Closeness centrality without pruning data
+```{r}
+data_list <- list(df302, df312, df505, df601)
+
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(data_list), initial = 0, style = 3)
+
+for (i in 1:length(data_list)){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+  
+  print(get_closenees_centrality(data_list[i]))
+}
+close(pb)
+
+
+
+#---------------------------------------------------------------------------
+# TESTING
+start_time <- Sys.time()
+print(get_closenees_centrality(df302))
+end_time <- Sys.time()
+print(end_time - start_time)
+
+
+```
+
+
+
+Getting between-ness centrality with pruned data
 ```{r}
 get_between_centrality <- function(data){
   set.seed(45)
@@ -178,8 +377,8 @@ get_between_centrality <- function(data){
   bn <- betweenness(G)
   print(summary(bn))
   bn_df <- data.frame(bn)
-  bn_df <- cbind(item_no = 0:(length(bn_df)-1), bn_df)
-  colnames(bn_df)[2] <- "between"
+  bn_df <- cbind(names(bn), bn_df)
+  colnames(bn_df)[c(1,2)] <- c("ID","between")
   bn_df <- bn_df[order(bn_df$between, decreasing = T),]
   
   return(bn_df) 
@@ -190,16 +389,23 @@ get_between_centrality <- function(data){
 
 data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
 
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(data_list), initial = 0, style = 3)
 
 for (i in 1:length(data_list)){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+  
   print(get_closenees_centrality(data_list[i]))
 }
+close(pb)
 
 
 ```
 
-Getting page-rank
 
+Getting page-rank with pruned data
 ```{r}
 get_page_rank <- function(data){
   set.seed(45)
@@ -209,8 +415,8 @@ get_page_rank <- function(data){
   pr <- page.rank(G)$vector
   print(summary(pr))
   pr_df <- data.frame(pr)
-  pr_df <- cbind(item_no = 0:(length(pr_df)-1), pr_df)
-  colnames(pr_df)[2] <- "between"
+  pr_df <- cbind(names(pr), pr_df)
+  colnames(pr_df)[c(1,2)] <- c("ID","page_rank")
   pr_df <- pr_df[order(pr_df$between, decreasing = T),]
   
   return(pr_df) 
@@ -221,13 +427,317 @@ get_page_rank <- function(data){
 
 data_list <- list(pruned_302_df, pruned_312_df, pruned_505_df, pruned_601_df)
 
+stepi <- 0
+pb <- txtProgressBar(min=0, max=length(data_list), initial = 0, style = 3)
 
 for (i in 1:length(data_list)){
+  
+  stepi <- stepi + 1
+  setTxtProgressBar(pb, stepi)
+  
   print(get_closenees_centrality(data_list[i]))
 }
 
+close(pb)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### DATA WTIH METADATA FOR DEGREE CENTRALITY 
+```{r}
+get_degree_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating degree
+  temp <- degree(sg)
+  
+  #Converting into dataframe
+  temp_df <- data.frame(temp)
+  
+  #Adding column with the node ID
+  temp_df <- cbind(as.integer(names(temp)), temp_df)
+  
+  #Renaming columns
+  colnames(temp_df)[c(1,2)] <- c("Id","degree")
+  
+  #Reordering based on degree
+  temp_df <- temp_df[order(temp_df$degree, decreasing = T),]
+  
+  #Left join meta data
+  temp_df <- left_join(temp_df, meta_data_df, by= "Id")
+  
+
+  return(temp_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+df302_degree_meta <- get_degree_df_with_meta_data(df302)
+print(df302_degree_meta)
+
+df312_degree_meta <- get_degree_df_with_meta_data(df312)
+print(df312_degree_meta)
+
+df505_degree_meta <- get_degree_df_with_meta_data(df505)
+print(df505_degree_meta)
+
+df601_degree_meta <- get_degree_df_with_meta_data(df601)
+print(df601_degree_meta)
+```
+
+Group by group and then just head 100 
+```{r}
+temp_df <- head(temp_df, n = 100)
+
+
+
 
 ```
+
+
+
+### Getting closeness centrality 
+```{r}
+get_closeness_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  print(in.max.comp)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating closeness
+  sg_cl <- closeness(sg)
+  print(summary(sg_cl))
+  
+  #Converting into dataframe
+  sg_cl_df <- data.frame(sg_cl)
+  
+  #Adding column with the node ID
+  sg_cl_df <- cbind(as.integer(names(sg_cl)), sg_cl_df)
+  
+  #Renaming columns
+  colnames(sg_cl_df)[c(1,2)] <- c("Id","closeness")
+  
+  #Reordering based on degree
+  sg_cl_df <- sg_cl_df[order(sg_cl_df$closeness, decreasing = T),]
+  
+  #Left join meta data
+  sg_cl_df <- left_join(sg_cl_df, meta_data_df, by= "Id")
+  
+
+  return(sg_cl_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+df302_close_meta <- get_closeness_df_with_meta_data(pruned_302_df)
+print(df302_close_meta)
+
+df312_close_meta <- get_closeness_df_with_meta_data(pruned_312_df)
+print(df312_close_meta)
+
+df505_close_meta <- get_closeness_df_with_meta_data(pruned_505_df)
+print(df505_close_meta)
+
+df601_close_meta <- get_closeness_df_with_meta_data(pruned_601_df)
+print(df601_close_meta)
+```
+
+
+Group by group and then just head 100 
+```{r}
+temp_df <- head(temp_df, n = 100)
+
+
+
+
+```
+
+
+
+
+
+### Getting betweenness centrality 
+```{r}
+get_between_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating betweenness
+  bn <- betweenness(G)
+  print(summary(bn))
+  
+  #Converting into dataframe
+  bn_df <- data.frame(bn)
+  
+  #Adding column with the node ID
+  bn_df <- cbind(as.integer(names(bn)), bn_df)
+  
+  #Renaming columns
+  colnames(bn_df)[c(1,2)] <- c("Id","betweenness")
+  
+  #Reordering based on degree
+  bn_df <- bn_df[order(bn_df$betweenness, decreasing = T),]
+  
+  #Left join meta data
+  bn_df <- left_join(bn_df, meta_data_df, by= "Id")
+  
+
+  return(bn_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+
+df302_bet_meta <- get_between_df_with_meta_data(pruned_302_df)
+print(df302_bet_meta)
+
+df312_bet_meta <- get_between_df_with_meta_data(pruned_312_df)
+print(df312_bet_meta)
+
+df505_bet_meta <- get_between_df_with_meta_data(pruned_505_df)
+print(df505_bet_meta)
+
+df601_bet_meta <- get_between_df_with_meta_data(pruned_601_df)
+print(df601_bet_meta)
+```
+
+
+Group by group and then just head 100 
+```{r}
+temp_df <- head(temp_df, n = 100)
+
+
+
+
+```
+
+
+
+
+
+
+
+### Getting page-rank centrality 
+```{r}
+get_page_rank_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating betweenness
+  pr <- page.rank(G)$vector
+  print(summary(pr))
+  
+  #Converting into dataframe
+  pr_df <- data.frame(pr)
+  
+  #Adding column with the node ID
+  pr_df <- cbind(as.integer(names(pr)), pr_df)
+  
+  #Renaming columns
+  colnames(pr_df)[c(1,2)] <- c("Id","page_rank")
+  
+  #Reordering based on degree
+  pr_df  <- pr_df[order(pr_df$page_rank, decreasing = T),]
+  
+  #Left join meta data
+  pr_df <- left_join(pr_df, meta_data_df, by= "Id")
+  
+
+  return(pr_df) 
+}
+
+
+
+#---------------------------------------------------------------------------
+
+df302_page_rank_meta <- get_page_rank_df_with_meta_data(pruned_302_df)
+print(df302_bet_meta)
+
+df312_page_rank_meta <- get_page_rank_df_with_meta_data(pruned_312_df)
+print(df312_bet_meta)
+
+df505_page_rank_meta <- get_page_rank_df_with_meta_data(pruned_505_df)
+print(df505_bet_meta)
+
+df601_page_rank_meta <- get_page_rank_df_with_meta_data(pruned_601_df)
+print(df601_bet_meta)
+```
+
+
+Group by group and then just head 100 
+```{r}
+temp_df <- head(temp_df, n = 100)
+
+
+
+
+```
+
 
 
 
