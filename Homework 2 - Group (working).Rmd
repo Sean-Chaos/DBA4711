@@ -1,0 +1,482 @@
+---
+title: "Homework 2 - Group (working)"
+output: html_document
+date: "2024-02-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(mltools)
+library(data.table)
+library(caret)
+
+```
+
+
+
+
+
+
+#Data Import 
+```{r}
+data_df <- read.csv('WranglerElantra2018.csv')
+data_df
+```
+
+#Data exploration
+Here we conducted a preliminary check on the data to see what the data looks like.
+Specifically in this chuck looking to see if the data resembles a normal distribution 
+as this is one of the assumptions that linear regression makes.
+```{r}
+print(summary(data_df))
+
+par(mfrow=c(3,3))
+hist(data_df$Wrangler.Sales)
+hist(data_df$Elantra.Sales)
+hist(data_df$Unemployment.Rate)
+hist(data_df$Wrangler.Queries)
+hist(data_df$Elantra.Queries)
+hist(data_df$CPI.All)
+hist(data_df$CPI.Energy)
+```
+
+#Splitting data into train and test
+The training set should contain all observations for 2010–2017. 
+The test set should have all observations for 2018.
+```{r}
+train_df <- data_df[data_df$Year != 2018,]
+rownames(train_df) <- NULL
+test_df <- data_df[data_df$Year == 2018,]
+rownames(test_df) <- NULL
+```
+
+
+
+
+Consider the five independent variables 
+Year, Unemployment.Rate, Wrangler.Queries, CPI.Energy,and CPI.All
+
+Using your regression skills, you will choose a subset of these five variables and construct a regression model to predict monthly Wrangler sales (Wrangler.Sales). 
+
+
+ai) 10 points
+Build an initial linear model with all five independent variables. Based on model output, which variables are significant, i.e. have at least one “star” in the summary output (or more mathematically, have a p-value less than 0.05)?
+```{r}
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df[4]), "~", 
+             paste(colnames(train_df)[c(3,6,7,9,10)], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initialising the linear regression model 
+lin_reg_1 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_1))
+par(mfrow=c(2,2))
+plot(lin_reg_1)
+```
+#-------------------------------------------------------------------------------
+#Answer
+Looking at the summary statistic, it seems like  
+Year, Unemployment.Rate, Wrangler.Queries and CPI.Energy are important.
+
+We have come to the conclusion based on the low p values that these variables  have. The p-value is the probability of obtaining a result as extreme as or more extreme than the observed data assuming the null hypothesis is true. Since these variables have p values less than 0.01. Thus we can say that these  variables are statistically relevant.
+
+However, taking a closer look at the other statistics, these 4 variables all have relatively high Std. Error. This points to the fact that these variables  could potentially have less significance. 
+
+On the other hand, these variables also have relatively high t values, which means that the observed data is likely to have a significant effect on the response variable.
+
+#-------------------------------------------------------------------------------
+
+aii) 
+(6 points) Choose a subset of the five independent variables to construct a new linear model.
+
+
+
+```{r}
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df[4]), "~", 
+             paste(colnames(train_df)[c(3,6,7,10)], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initialising the linear regression model 
+lin_reg_2 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_2))
+par(mfrow=c(2,2))
+plot(lin_reg_2)
+```
+
+
+3. Yes 
+#-------------------------------------------------------------------------------
+#Answer
+1. (4 points) Justify your choice of variables.
+
+The way that we went about choosing significant variables is to look at their p value in conjunction with their t stat and standard error. From the above part, We chose those variables that provided statistically significant effects on the response variable.
+
+
+
+2. (4 points) What is the linear regression equation produced by your new model, and what is your interpretation of the coefficients for the independent variables?
+
+The linear regression equation provided by the model is:
+y = 5.255e+6 -2.608e+3(b1) - 2.458e+3(b2) +3.151e+2(b3) + 3.373e+1(b4)
+where b1,b2,b3,b4 are the variables Year, Unemployment.Rate, Wrangler.Queries and CPI.Energy
+
+The sign of the coefficients here represent if they are positively or negatively  related to the response variable. The magnitude of the coefficients would thus represent the degree to which the the variable is related to the response variable
+
+
+
+3. (4 points) Do the signs of the model’s coefficients make sense?
+
+Yes. 
+For the year, it makes sense that it is negatively correlated with Wrangler.Sales. This is because like most products, the greatest interest for a product tends to be when it is new, and falls off as the product ages. Thus the negative coefficient  makes sense.
+
+For the Unemployment.Rate, this also makes sense to be negative, as the lower the employment rate, the better the overall economy is implied to be. Thus, consumers are more likely to have the disposable income to purchase a Wrangler.
+
+For Wrangler.Queries, the relationships is quite obvious. The more queries that  are being made, the more interest there is for Wranglers, which will directly correlates to Wrangler.Sales.
+
+For CPI.Energy, this gives the consumer price index for the US energy sector. This  shows how much it will cost to run the car. In this case it is positively related to wrangler sales, which does not make sense. However, when you consider thatwhen the US economy is historically doing well, this is almost always coupled with high CPI. Thus in this way a strong economy could be correlated with high Wrangler.Sales.
+
+#-------------------------------------------------------------------------------
+
+
+
+aiii) ****
+
+```{r}
+test_pred <- as.data.table(predict(lin_reg_2, newdata = test_df))
+print(test_pred)
+
+
+#OSR2 calculation
+SS.test.total      <- sum((test_df$Wrangler.Sales - mean(train_df$Wrangler.Sales))^2)
+SS.test.residual   <- sum((test_df$Wrangler.Sales - test_pred)^2)
+SS.test.regression <- sum((test_pred - mean(train_df$Wrangler.Sales))^2)
+#SS.test.total - (SS.test.regression+SS.test.residual)
+
+test_r2 <- 1 - SS.test.residual/SS.test.total  
+print(paste("OSR2: ", as.character(test_r2)))
+
+```
+
+#-------------------------------------------------------------------------------
+#Answer
+(4 points) How well does the model predict training-set observations, as captured, for instance, by the R2 value of the model? In a similar spirit, how well does the model predict test-set observations, as captured, for instance, by the OSR2 value of the model?
+
+
+The model predicts quite well with regards to the training-set with a adjusted R-squared of 0.7938 which is quite high. 
+
+With regards to the models test-set obsveration predictions, it is lower, wiht a OSR2 of 0.5490.
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+b) Google Trends. (4 points) One of our feature variables, Wrangler.Queries, was obtained from publicly-available data in Google Trends. In Figure 1, we show a time-series plot of search queries for “jeep wrangler” over the time span from 2010–2018. What trend do you observe? Does this trend make intuitive business sense?
+#-------------------------------------------------------------------------------
+#Answer
+
+Based on the figure, it seems that interest in the Jeep Wrangler dips during November and December. Conversely, there’s a surge in interest around July. This trend could be attributed to manufacturers unveiling new models during this period. The introduction of new models typically sparks curiosity and increases interest in the vehicle. However, this heightened interest tends to decrease as those who were keen to discover the new features stop once they figured out that the vehicle is not for them.
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+c) Drawing on intuition from Figure 1, let us now try to further improve the linear regression model by modeling seasonality. Construct a new linear regression model using the Month.Factor variable as an independent variable. And as before, construct your model based on the training data.
+
+ci) 
+(4 points) Describe your new model. What is the regression equation? (Do not simply copy and paste output from R.) What is your interpretation of the coefficients of each of the Month.Factor dummy variables?
+
+```{r}
+#In order to use Month.Factor as a variable, we have to use one hot encoding since it is 
+#a categorical variable
+train_df_dummified <- data.frame(train_df)
+dmy <- dummyVars(" ~ .", data = train_df_dummified, fullRank = T)
+train_df_dummified <- data.frame(predict(dmy, newdata = train_df_dummified))
+head(train_df_dummified)
+
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df_dummified[14]), "~", 
+             paste(colnames(train_df_dummified)[c(2:12,13,16,17,20)], collapse = "+"), 
+             sep = ""
+             ))
+
+
+#Initialising the linear regression model 
+lin_reg_3 <- lm(formula = fm, 
+                  data = train_df_dummified)
+
+#Printing the summary statistics
+print(summary(lin_reg_3))
+par(mfrow=c(2,2))
+plot(lin_reg_3)
+
+
+```
+
+#-------------------------------------------------------------------------------
+#Answer
+
+From the regression summary table, the regression equation is:
+
+The sign of the coefficients here represent if they are positively or negatively related to the response variable. The magnitude of the coefficients would thus represent the degree to which the the variable is related to the response variable.
+
+We can see that the months are not equally significant to the outcome variable. In particular the important months are December, February, January, November, October and September.
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+
+
+cii) 
+(6 points) Which variables are significant? What is the training set R2? Test set OSR2?
+
+```{r}
+test_df_dummified <- data.frame(test_df)
+dmy <- dummyVars(" ~ .", data = test_df_dummified, fullRank = T)
+test_df_dummified <- data.frame(predict(dmy, newdata = test_df_dummified))
+head(test_df_dummified)
+
+test_pred <- as.data.table(predict(lin_reg_3, newdata = test_df_dummified))
+print(test_pred)
+
+
+#OSR2 calculation
+SS.test.total      <- sum((test_df_dummified$Wrangler.Sales - mean(train_df_dummified$Wrangler.Sales))^2)
+SS.test.residual   <- sum((test_df_dummified$Wrangler.Sales - test_pred)^2)
+SS.test.regression <- sum((test_pred - mean(train_df_dummified$Wrangler.Sales))^2)
+#SS.test.total - (SS.test.regression+SS.test.residual)
+
+test_r2 <- 1 - SS.test.residual/SS.test.total  
+print(paste("OSR2: ", as.character(test_r2)))
+
+```
+#-------------------------------------------------------------------------------
+#Answer
+
+Training adjusted R-squared is 0.8922 compared to the test R-squared which is 0.6493
+
+#-------------------------------------------------------------------------------
+
+
+
+
+ciii) 
+(6 points) Do you think adding the independent variable Month.Factor has improved the
+quality of the model? Why or why not?
+
+#-------------------------------------------------------------------------------
+#Answer
+Incorporating the month factor has enhanced the predictive power of our model, both in-sample and out-of-sample.
+
+However, the limited size of our data set introduces a potential risk. The addition of numerous new variables could lead to over fitting, especially considering we only have 50 data points and 15 predictors. This over fitting could significantly degrade the model’s performance on data that substantially differs from our current data set. It’s important to note that our test set is derived from the same data set, which may limit the model’s generalizability.
+
+#-------------------------------------------------------------------------------
+
+
+
+
+civ) 
+(4 points) Can you think of a different way that you might use the given data to model seasonality? Do you think your new way would improve on the best model you have constructed so
+far? (By the way, later in the course we will have a lecture dedicated to time series modeling,
+and we will explore a number of ways to construct models using data sets with an associated
+time component.)
+
+#-------------------------------------------------------------------------------
+#Answer
+You could simply just use Month.Numeric. It has already been encoded for us. 
+Because of the limited data that we have, doing one hot encoding has resulted in 
+a large number of variables relative to our data set and leads to a significant risk 
+of over fitting.
+
+However, this also bring its own set of problems. This numeric encoding implies originality, which is not true as December and February are just different months not ordered. 
+
+Furthermore, the model may interpret the distance between February an April as being twice as much as the distance between February and March. 
+
+Better solution might be to group the months into 4 season so that there are fewer variables
+
+#-------------------------------------------------------------------------------
+
+Using month numeric to get a model 
+```{r}
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df[4]), "~", 
+             paste(colnames(train_df)[c(1,3,6,7,10)], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initialising the linear regression model 
+lin_reg_4 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_4))
+par(mfrow=c(2,2))
+plot(lin_reg_4)
+
+
+```
+
+
+cv) 
+Elantra Sales. (6 points) Now, on the same training data set, build a linear regression model
+to predict the outcome variable Elantra.Sales (i.e., monthly US Elantra sales) using a subset
+of the independent variables 
+
+Year, Unemployment.Rate, Elantra.Queries, CPI.Energy, and CPI.All. 
+
+What is the training set R2? OSR2? (Note: Your model will probably not look
+very good.)
+
+
+Creating a model to find the important variables 
+```{r}
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df[5]), "~", 
+             paste(colnames(train_df)[c(3,6,8,9,10)], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initialising the linear regression model 
+lin_reg_5 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_5))
+par(mfrow=c(2,2))
+plot(lin_reg_5)
+
+
+```
+
+From the summary table above we can see that the important variables are:
+Unemployment.Rate, Elantra.Queries and CPI.Energy
+```{r}
+#Creating the formumla 
+fm <- as.formula(
+  paste(
+    colnames(train_df[5]), "~", 
+             paste(colnames(train_df)[c(6,8,10)], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initialising the linear regression model 
+lin_reg_5 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_5))
+par(mfrow=c(2,2))
+plot(lin_reg_5)
+
+#-------------------------------------------------------------------------------
+
+test_pred <- as.data.table(predict(lin_reg_5, newdata = test_df))
+print(test_pred)
+
+
+#OSR2 calculation
+SS.test.total      <- sum((test_df$Wrangler.Sales - mean(train_df$Wrangler.Sales))^2)
+SS.test.residual   <- sum((test_df$Wrangler.Sales - test_pred)^2)
+SS.test.regression <- sum((test_pred - mean(train_df$Wrangler.Sales))^2)
+#SS.test.total - (SS.test.regression+SS.test.residual)
+
+test_r2 <- 1 - SS.test.residual/SS.test.total  
+print(paste("OSR2: ", as.character(test_r2)))
+
+```
+#-------------------------------------------------------------------------------
+#Answer
+The finals models training adjusted R-squared is 0.2867 while its OSR2 is 0.5685
+
+#-------------------------------------------------------------------------------
+
+
+
+
+cvi) 
+(4 points) Compute all correlations among Elantra.Sales and the five independent variables
+listed in question d) by running the following command in your R console (assuming you
+loaded the data into a data frame called onedata):
+cor(onedata[,c("Elantra.Sales", "Year", "Unemployment.Rate", "Elantra.Queries",
+cor(onedata[,c("CPI.All", "CPI.Energy")])
+What do you observe? Does this help explain why the Elantra model is comparatively less
+predictive?
+
+
+```{r}
+print(data.frame(cor(data_df[,c("Elantra.Sales", "Year", "Unemployment.Rate",
+               "Elantra.Queries", "CPI.All", "CPI.Energy")])))
+      
+print(data.frame(cor(data_df[,c("Wrangler.Sales", "Year", "Unemployment.Rate",
+               "Wrangler.Queries", "CPI.All", "CPI.Energy")])))
+
+```
+
+#-------------------------------------------------------------------------------
+#Answer
+
+As seen from the correlation matrix, we can observe that the correlation between the significant variables is much lower with respect to the outcome variable as compared to Wrangler.Sales. This means that the data cannot predict the outcome variable as well. 
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
