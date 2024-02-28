@@ -1,0 +1,324 @@
+---
+title: "Sample Code"
+output: html_document
+date: "2024-02-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#network
+library(igraph)
+library(RColorBrewer)
+
+
+library(tidyverse)
+library(mltools)
+library(data.table)
+library(caret)
+
+
+library(fastDummies)
+
+```
+
+# Data cleaning code
+```{r}
+df <- read.csv("abc.csv", header=TRUE, skip=3, sep="\n")
+
+#rename columns
+colnames(df)[c(1,2)] <- c("col1","col2")
+
+#Filtering data by condition in column
+train_df <- data_df[data_df$Year != 2018,]
+
+#reset index
+rownames(train_df) <- NULL
+
+#Getting the number of rows with NA
+print(paste("Number of rows with NA:", as.character(sum(is.na(readmission_df)))))
+
+#Removing NA values
+readmission_df <- na.omit(readmission_df)
+
+```
+
+
+# One hot
+```{r}
+train_df_dummified <- data.frame(train_df)
+dmy <- dummyVars(" ~ .", data = train_df_dummified, fullRank = T)
+train_df_dummified <- data.frame(predict(dmy, newdata = train_df_dummified))
+head(train_df_dummified)
+
+
+#Function that one hot encodes everything except first col
+one_hot_k_minus_1 <- function(data){
+  dmy <- dummyVars(" ~ .", data = data, fullRank = T)
+  out <- data.frame(predict(dmy, newdata = data))
+  return(out)
+}
+
+#-------------------------------------------------------------------------------
+#BEST ONE HOT DOES NOT WORK
+dummified_df <- dummy_cols(data, select_columns = c('Month.Factor', 'second col to dummy'), remove_first_dummy = TRUE)
+
+```
+
+
+
+
+# Data exploration code
+```{R}
+#creates histogram if the rows are numeric
+hist(df$Wrangler.Sales)
+ggplot(readmission_df, aes(x=readmission)) + geom_bar() + theme_classic()
+
+
+#Create corr table with all columns that are not characters
+temp <- readmission_df %>% select_if(~!is.character(.))
+print(data.frame(cor(temp)))
+
+
+#Checking % of col that is 1 and 0
+temp <- readmission_df %>% select_if(~is.integer(.))
+data.frame(colSums(temp)/nrow(temp)) %>% arrange(desc(colSums.temp..nrow.temp.))
+
+```
+
+
+
+
+
+# Network code
+```{r}
+get_degree_df <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #degrees
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating degree
+  temp <- degree(sg)
+  
+  #Converting into dataframe
+  temp_df <- data.frame(temp)
+  
+  #Adding column with the node ID
+  temp_df <- cbind(as.integer(names(temp)), temp_df)
+  
+  #Renaming columns
+  colnames(temp_df)[c(1,2)] <- c("Id","degree")
+  
+  #Reordering based on degree
+  temp_df <- temp_df[order(temp_df$degree, decreasing = T),]
+  
+  return(temp_df) 
+}
+
+
+#-------------------------------------------------------------------------------
+
+get_closeness_df_with_meta_data <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #closeness
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating closeness
+  sg_cl <- closeness(sg)
+  print(summary(sg_cl))
+  
+  #Converting into dataframe
+  sg_cl_df <- data.frame(sg_cl)
+  
+  #Adding column with the node ID
+  sg_cl_df <- cbind(as.integer(names(sg_cl)), sg_cl_df)
+  
+  #Renaming columns
+  colnames(sg_cl_df)[c(1,2)] <- c("Id","closeness")
+  
+  #Reordering based on degree
+  sg_cl_df <- sg_cl_df[order(sg_cl_df$closeness, decreasing = T),]
+  
+  return(sg_cl_df) 
+}
+
+#-------------------------------------------------------------------------------
+
+get_between_df <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #betweenness
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating betweenness
+  bn <- betweenness(G)
+  print(summary(bn))
+  
+  #Converting into dataframe
+  bn_df <- data.frame(bn)
+  
+  #Adding column with the node ID
+  bn_df <- cbind(as.integer(names(bn)), bn_df)
+  
+  #Renaming columns
+  colnames(bn_df)[c(1,2)] <- c("Id","betweenness")
+  
+  #Reordering based on degree
+  bn_df <- bn_df[order(bn_df$betweenness, decreasing = T),]
+  
+  
+  return(bn_df) 
+}
+
+#-------------------------------------------------------------------------------
+
+get_page_rank_df <- function(data){
+  #Function that return a dataframe containing node ID with their corresponding
+  #page-rank
+  
+  #creating igraph object using edge data and meta data
+  G <- graph_from_data_frame(data, directed = T)
+  
+  #Reducing to the largest connected componenet of the graph
+  comp <- components(G)
+  in.max.comp <- (comp$membership == 1)
+  sg <- induced_subgraph(G, in.max.comp)
+
+  #Calculating betweenness
+  pr <- page.rank(G)$vector
+  print(summary(pr))
+  
+  #Converting into dataframe
+  pr_df <- data.frame(pr)
+  
+  #Adding column with the node ID
+  pr_df <- cbind(as.integer(names(pr)), pr_df)
+  
+  #Renaming columns
+  colnames(pr_df)[c(1,2)] <- c("Id","page_rank")
+  
+  #Reordering based on degree
+  pr_df  <- pr_df[order(pr_df$page_rank, decreasing = T),]
+  
+
+  return(pr_df) 
+}
+
+
+```
+
+
+
+# Linear regression code
+```{r}
+#Creating the formula 
+fm <- as.formula(
+  paste(
+    colnames(train_df['response index']), "~", 
+             paste(colnames(train_df)[c('var 1','var 2')], collapse = "+"), 
+             sep = ""
+             ))
+
+#Initializing the linear regression model 
+lin_reg_1 <- lm(formula = fm, 
+                  data = train_df)
+
+#Printing the summary statistics
+print(summary(lin_reg_1))
+par(mfrow=c(2,2))
+plot(lin_reg_1)
+
+#-------------------------------------------------------------------------------
+
+train_linear_mdl <- function(train_df, response_var_index, dependent_var_index_vector){
+  #Creating the formula 
+  fm <- as.formula(
+  paste(
+    colnames(train_df[response_var_index]), "~", 
+             paste(colnames(train_df)[dependent_var_index_vector], collapse = "+"), 
+             sep = ""
+             ))
+  print(fm)
+
+  #Initializing the linear regression model 
+  lin_reg_1 <- lm(formula = fm, 
+                  data = train_df)
+
+  #print summary statistics
+  print(summary(lin_reg_1))
+  par(mfrow=c(2,2))
+  plot(lin_reg_1)
+
+  return(lin_reg_1)
+}
+
+
+```
+
+
+
+
+# Statistics code
+```{r}
+OSR2 <- function(predictions, test, train) {
+  SSE <- sum((test - predictions)^2)
+  SST <- sum((test - mean(train))^2)
+  r2 <- 1 - SSE/SST
+  return(r2)
+}
+
+test_pred <- as.data.table(predict(lin_reg_2, newdata = test_df))
+print(paste("OSR2: ", as.character(OSR2(mdl_pred,test_df$out,train_df$out))))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
